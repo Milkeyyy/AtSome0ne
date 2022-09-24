@@ -1,12 +1,14 @@
 import asyncio
-from code import interact
 import datetime
+import json
+import logging
+import sys
+import uuid
+from code import interact
 from lib2to3.pgen2.token import OP
+
 import discord
 from discord.commands import Option
-import logging
-import json
-import uuid
 
 logging.basicConfig(level=logging.INFO)
 logging.basicConfig(level=logging.WARNING)
@@ -36,16 +38,55 @@ def convertToBulletPointsFromList(list: list):
 			bp = bp + "・" + item.name + "\n"
 	return bp
 
+# ユーザーIDリスト → ユーザーオブジェクトリスト → ユーザー名箇条書き化
 def convertToUserBulletPointsFromIDList(id_list):
 	return convertToBulletPointsFromList(convertToUserFromID(id_list))
 
-#Botの名前
+# トークン読み込み
+def loadToken():
+	global token
+
+	try: # ファイルが存在しない場合
+		# ファイルを作成して初期データを書き込む
+		file = open("token.txt", "x", encoding="utf-8")
+		file.write("")
+		log("トークンが指定されていません...")
+		log("token.txt にトークンを入力してください！")
+		sys.exit("")
+
+	except FileExistsError: # ファイルが存在する場合
+		# ファイルから読み込む
+		file = open("token.txt", "r", encoding="utf-8")
+		token = file.read()
+		file.close()
+		if token == None:
+			log("トークンが指定されていません...")
+			log("token.txt にトークンを入力してください！")
+			sys.exit("")
+
+# Botの名前
 bot_name = "Some0ne"
-#Botのバージョン
+# Botのバージョン
 bot_version = "1.0"
 
-#くらいあんと
+# スプラッシュテキストを表示
+print("")
+print("---------------------------------------")
+print(f" {bot_name} Bot - Version {bot_version}")
+print(f" using Pycord {discord.__version__}")
+print(f" Developed by Milkeyyy")
+print("---------------------------------------")
+print("")
+
+# 変数宣言
+token = ""
+
+# トークンを読み込む
+loadToken()
+
+# インテント
 intents = discord.Intents.all()
+# くらいあんと
 client = discord.Bot(intents = intents)
 
 # ゲーム一覧
@@ -84,17 +125,17 @@ def loadGuildData():
 	checkGuildData()
 	try: # ファイルが存在しない場合
 		# ファイルを作成して初期データを書き込む
-		file = open("guild.json", "x")
+		file = open("guild.json", "x", encoding="utf-8")
 		file.write(json.dumps(guilddata, indent = 2, sort_keys=True))
 		file.close()
 		# ファイルから読み込む
-		file = open("guild.json", "r")
+		file = open("guild.json", "r", encoding="utf-8")
 		guilddata = json.load(file)
 		file.close()
 
 	except FileExistsError: # ファイルが存在する場合
 		# ファイルから読み込む
-		file = open("guild.json", "r")
+		file = open("guild.json", "r", encoding="utf-8")
 		guilddata = json.load(file)
 		file.close()
 
@@ -104,7 +145,7 @@ def saveGuildData():
 	global guilddata
 
 	# 書き込み用にファイルを開く
-	file = open("guild.json", "w")
+	file = open("guild.json", "w", encoding="utf-8")
 	# 辞書をファイルへ保存
 	file.write(json.dumps(guilddata, indent = 2, sort_keys=True))
 	file.close()
@@ -113,15 +154,11 @@ def saveGuildData():
 # Bot起動時のイベント
 @client.event
 async def on_ready():
-	print("---------------------------------------")
-	print(f" {bot_name} - Version {bot_version}")
-	print(f" using Pycord {discord.__version__}")
-	print(f" Developed by Milkeyyy")
-	print("---------------------------------------")
+	print("")
 	log(f"{client.user} へログインしました！ (ID: {client.user.id})")
 
 	#プレゼンスを設定
-	await client.change_presence(activity=discord.Game(name=f"Version {bot_version}"))
+	await client.change_presence(activity=discord.Game(name=f"/help | Version {bot_version}"))
 
 	# ユーザーデータを作成
 	createUserData()
@@ -353,4 +390,4 @@ async def setrecruitmentchannel(
 #==================== 設定関連コマンド ====================#
 
 #==================== ぼっとへログイン ====================#
-client.run("MTAyMjUwODgwNDkyNTAzODU5Mg.G5p3mD.cjYaQkQw9LWfvFx--MZEGzO3bLZ9t8yPbXLoeg")
+client.run(token)
