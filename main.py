@@ -8,6 +8,7 @@ import uuid
 from code import interact
 from dis import disco
 from lib2to3.pgen2.token import OP
+from server import keep_alive
 
 import discord
 from discord.commands import Option
@@ -197,8 +198,11 @@ async def on_ready():
 async def about(ctx):
 	embed = discord.Embed(color=discord.Colour.from_rgb(234,197,28))
 	embed.set_author(name=bot_name,icon_url=client.user.display_avatar.url)
+	raw_ping = client.latency
+	ping = round(raw_ping * 1000)
 	embed.add_field(name=f"Version",value=f"`{bot_version}`")
 	embed.add_field(name=f"Pycord",value=f"`{discord.__version__}`")
+	embed.add_field(name=f"Ping",value=f"**`{ping}`** ms")
 	embed.set_footer(text=f"Developed by Milkeyyy")
 	await ctx.respond(embed=embed)
 	print(f"[{now()}] コマンド実行: about / 実行者: {ctx.user}")
@@ -491,4 +495,10 @@ async def help(ctx):
 	await ctx.respond(embed=embed, ephemeral=True)
 
 #==================== ぼっとへログイン ====================#
-client.run(token)
+# ウェブサーバーを起動する
+keep_alive()
+
+try:
+	client.run(token)
+except:
+	os.system("kill 1")
