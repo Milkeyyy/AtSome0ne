@@ -1,11 +1,12 @@
 import asyncio
 import datetime
-from dis import disco
 import json
 import logging
+import os
 import sys
 import uuid
 from code import interact
+from dis import disco
 from lib2to3.pgen2.token import OP
 
 import discord
@@ -47,23 +48,11 @@ def convertToUserBulletPointsFromIDList(id_list):
 def loadToken():
 	global token
 
-	try: # ファイルが存在しない場合
-		# ファイルを作成して初期データを書き込む
-		file = open("token.txt", "x", encoding="utf-8")
-		file.write("")
-		log("トークンが指定されていません...")
-		log("token.txt にトークンを入力してください！")
-		sys.exit("")
+	token = os.getenv("TOKEN")
 
-	except FileExistsError: # ファイルが存在する場合
-		# ファイルから読み込む
-		file = open("token.txt", "r", encoding="utf-8")
-		token = file.read()
-		file.close()
-		if token == None:
-			log("トークンが指定されていません...")
-			log("token.txt にトークンを入力してください！")
-			sys.exit("")
+	if token == None:
+		log("トークンが指定されていません...")
+		sys.exit("")
 
 # Botの名前
 bot_name = "Some0ne"
