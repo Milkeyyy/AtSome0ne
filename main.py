@@ -210,12 +210,24 @@ async def updateRecruitment():
 	global invitedata
 	global guilddata
 
+	# 各募集データをループ
 	for id in invitedata.keys():
 		invd = invitedata[id]
+		try:
+			# メッセージIDからメッセージを取得
+			msg = client.get_message(invd["message_id"])
+			# メッセージから埋め込みを取得
+			msgembed = msg.embeds[0]
+			# メッセージの埋め込みから募集IDを取得
+			id = msgembed.footer.text.lstrip("ID: ")
+		except:
+			return
+
 		if invd["timeleft"] == 0:
-			print("")
+			# 募集を終了
+			await endInvite(1, msg.guild.id, msg.author.id, msg.id)
 		else:
-			print("")
+			invd["timeleft"] == invd["timeleft"] - 1
 
 # Bot起動時のイベント
 @client.event
