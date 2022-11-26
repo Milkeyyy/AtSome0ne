@@ -16,8 +16,7 @@ import uuid
 from code import interact
 from dis import disco
 from lib2to3.pgen2.token import OP
-import schedule
-from time import sleep
+
 
 logging.basicConfig(level=logging.INFO)
 logging.basicConfig(level=logging.WARNING)
@@ -718,10 +717,4 @@ async def help(ctx):
 
 
 #==================== ぼっとへログイン ====================#
-# ウェブサーバーを起動する
-keep_alive()
-
-try:
-	client.run(token)
-except:
-	os.system("kill 1")
+client.run(token)
