@@ -607,7 +607,7 @@ def startInvite(guild, author, message, game, nop, id, timeout):
 	# メンバー募集の終了スケジュールを別スレッドで開始する
 	t = threading.Thread(target = createRecruitmentSchedule, args = [guild, author, message, id, timeout], name = "recruitment_" + id)
 	t.start()
-	
+
 	log(f"募集開始 - ユーザー: {client.get_user(author)}")
 	log(f"- 募集情報 - Author ID: {invd['author_id']} | Message ID: {invd['message_id']} | Game Title: {invd['game']} | Number on People: {invd['nop']} | Timeout(sec): {invd['timeout']} | Member List: {invd['member']}"
 		)
@@ -615,7 +615,7 @@ def startInvite(guild, author, message, game, nop, id, timeout):
 # メンバー募集の終了スケジュールを作成して開始する
 def createRecruitmentSchedule(guild, author, message_id, id, timeout):
 	global invitedata
-	
+
 	run_at = datetime.datetime.now() + datetime.timedelta(seconds = timeout)
 	run_at = int(time.mktime(run_at.utctimetuple()))
 	ev = scheduler.enterabs(run_at, 1, endInvite, argument = (1, guild, author, message_id))
