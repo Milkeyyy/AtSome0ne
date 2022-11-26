@@ -1,19 +1,25 @@
+import discord
+from discord.commands import Option
+
+import discord.ext.ui
+
+from server import keep_alive
+
 import asyncio
 import datetime
 import json
 import logging
 import os
+import sched
+import time
+import threading
 import sys
 import uuid
 from code import interact
 from dis import disco
 from lib2to3.pgen2.token import OP
-from server import keep_alive
 import schedule
 from time import sleep
-
-import discord
-from discord.commands import Option
 
 logging.basicConfig(level=logging.INFO)
 logging.basicConfig(level=logging.WARNING)
@@ -89,6 +95,11 @@ intents = discord.Intents.all()
 # くらいあんと
 client = discord.Bot(intents=intents)
 
+# イベントループを取得
+loop = asyncio.get_event_loop()
+
+scheduler = sched.scheduler(time.time, time.sleep)
+
 # ゲーム一覧
 game_title_list = ["Rainbow Six Siege", "Apex Legends", "Splatoon 3"]
 default_gamelist_item = {"role_id": 0}
@@ -106,6 +117,9 @@ default_userdata_item = {
 userdata = {}
 
 invitedata = {}
+
+# 定期チェックのオン/オフ
+checkrecruitment = False
 
 
 def createGameList():
@@ -205,7 +219,7 @@ def checkGuildData():
 	saveGuildData()
 	log("ギルドデータの確認 完了\n")
 
-async def updateRecruitment():
+def updateRecruitment():
 	global userdata
 	global invitedata
 	global guilddata
@@ -225,7 +239,8 @@ async def updateRecruitment():
 
 		if invd["timeleft"] == 0:
 			# 募集を終了
-			await endInvite(1, msg.guild.id, msg.author.id, msg.id)
+			log(f"メンバー募集終了 (時間切れ) - ID: {id}")
+			endInvite(1, msg.guild.id, msg.author.id, msg.id)
 		else:
 			invd["timeleft"] == invd["timeleft"] - 1
 
@@ -245,9 +260,6 @@ async def on_ready():
 	# ギルドデータを確認&読み込み
 	checkGuildData()
 
-	# スケジュールを登録
-	schedule.every(1).seconds.do(updateRecruitment())
-
 
 @client.command(description="このBotの情報を表示します。")
 async def about(ctx):
@@ -265,6 +277,31 @@ async def about(ctx):
 
 #uicmd = client.create_group("ui", description="UIに関する管理を行うためのコマンドです。")
 
+async def startRecruitmentStatusCheck():
+	while checkrecruitment == True:
+		global userdata
+		global invitedata
+		global guilddata
+	
+		# 各募集データをループ
+		for id in invitedata.keys():
+			invd = invitedata[id]
+			try:
+				# メッセージIDからメッセージを取得
+				msg = client.get_message(invd["message_id"])
+				# メッセージから埋め込みを取得
+				msgembed = msg.embeds[0]
+				# メッセージの埋め込みから募集IDを取得
+				id = msgembed.footer.text.lstrip("ID: ")
+			except:
+				return
+
+			if invd["timeleft"] == 0:
+				# 募集を終了
+				endInvite(1, msg.guild.id, msg.author.id, msg.id)
+			else:
+				invd["timeleft"] == invd["timeleft"] - 1
+			await asyncio.sleep(1)
 
 class InviteView(discord.ui.View):
 
@@ -359,7 +396,7 @@ class InviteView(discord.ui.View):
 					invitedata[id]["member"].append(interaction.user.id)
 					await updateMemberList()
 					await sendJoinMessage()
-					await endInvite(1, rmsg.guild.id, rmsg.author.id, rmsg.id)
+					endInvite(1, rmsg.guild.id, rmsg.author.id, rmsg.id)
 					return
 				else:
 					# 募集データにユーザーIDを追加
@@ -368,25 +405,25 @@ class InviteView(discord.ui.View):
 					await sendJoinMessage()
 
 	# 時間制限が来た時
-	async def on_timeout(self):
-		rmsg = self.message
-		if type(rmsg) != discord.Message:
-			return
+	#async def on_timeout(self):
+	#	rmsg = self.message
+	#	if type(rmsg) != discord.Message:
+	#		return
 
-		try:
-			#log(f"{dir(rmsg)}")
-			#return
-			# メッセージIDからメッセージを取得
-			msg = client.get_message(rmsg.id)
-			# メッセージから埋め込みを取得
-			msgembed = msg.embeds[0]
-			# メッセージの埋め込みから募集IDを取得
-			id = msgembed.footer.text.lstrip("ID: ")
-			# 募集を終了
-			await endInvite(1, rmsg.guild.id, rmsg.author.id, rmsg.id)
-		except:
-			self.clear_items()
-			#log("")
+	#	try:
+	#		#log(f"{dir(rmsg)}")
+	#		#return
+	#		# メッセージIDからメッセージを取得
+	#		msg = client.get_message(rmsg.id)
+	#		# メッセージから埋め込みを取得
+	#		msgembed = msg.embeds[0]
+	#		# メッセージの埋め込みから募集IDを取得
+	#		id = msgembed.footer.text.lstrip("ID: ")
+	#		# 募集を終了
+	#		await endInvite(1, rmsg.guild.id, rmsg.author.id, rmsg.id)
+	#	except:
+	#		self.clear_items()
+	#		#log("")
 
 
 @client.command(description="メンバーの募集を開始します。")
@@ -402,11 +439,11 @@ async def recruitment(
 					list(range(1, 31)))),
 	timeout: Option(float,
 					required=False,
-					min_value=5,
+					min_value=1,
 					max_value=600,
 					default=60,
 					name="制限時間",
-					description="募集を締め切るまでの時間(分)を指定します。 (指定しない場合は60秒になります。)",
+					description="募集を締め切るまでの時間(分)を指定します。 (指定しない場合は60分になります。)",
 					autocomplete=discord.utils.basic_autocomplete(
 						list(range(1, 60))))):
 	global userdata
@@ -455,10 +492,11 @@ async def recruitment(
 		else:
 			rch = client.get_channel(
 				guilddata[f"{ctx.guild_id}"]["recruitment_channel_id"])
-		rmsg = await rch.send(f"{role}",
-							  embed=embed,
-							  view=InviteView(timeout=timeout,
-											  disable_on_timeout=True))
+		rmsg = await rch.send(
+						f"{role}",
+						embed=embed,
+						view=InviteView()
+					)
 
 		# 募集開始通知用埋め込みメッセージを作成
 		notification_embed = discord.Embed(
@@ -478,7 +516,7 @@ async def recruitment(
 		invitedata[id]["member"].append(ctx.author.id)
 
 
-@client.command(description="メンバーの募集をキャンセルします。")
+@client.command(description="現在行っているメンバーの募集をキャンセルします。")
 async def cancelrecruitment(ctx):
 	global userdata
 	global invitedata
@@ -496,13 +534,43 @@ async def cancelrecruitment(ctx):
 		# 募集IDを取得
 		id = msgembed.footer.text.lstrip("ID: ")
 
+		# メンバー募集のスケジュールを削除
+		scheduler.cancel(invitedata[id]["event"])
+
 		# 募集を終了
-		await endInvite(2, ctx.guild_id, ctx.author.id, invd["message_id"])
+		endInvite(2, ctx.guild_id, ctx.author.id, invd["message_id"])
 		await ctx.respond(f"募集がキャンセルされました。\n・ID: {id}\n・ゲーム: {udg}",
 						  ephemeral=True)
 	else:
 		await ctx.respond("募集が開始されていません！", ephemeral=True)
 
+@client.command(description="現在行っているメンバーの募集を締め切ります。")
+async def endrecruitment(ctx):
+	global userdata
+	global invitedata
+
+	ud = userdata[ctx.guild_id][ctx.author.id]
+	udg = ud["Game"]
+
+	if ud["Atmark"] == True:
+		# 募集データを取得
+		invd = invitedata[ud["RecID"]]
+		# メッセージを取得
+		msg = client.get_message(invd["message_id"])
+		# メッセージの埋め込みを取得
+		msgembed = msg.embeds[0]
+		# 募集IDを取得
+		id = msgembed.footer.text.lstrip("ID: ")
+
+		# メンバー募集のスケジュールを削除
+		scheduler.cancel(invitedata[id]["event"])
+
+		# 募集を終了
+		endInvite(1, ctx.guild_id, ctx.author.id, invd["message_id"])
+		await ctx.respond(f"募集を終了しました。\n・ID: {id}\n・ゲーム: {udg}",
+						  ephemeral=True)
+	else:
+		await ctx.respond("募集が開始されていません！", ephemeral=True)
 
 def startInvite(guild, author, message, game, nop, id, timeout):
 	global userdata
@@ -526,12 +594,26 @@ def startInvite(guild, author, message, game, nop, id, timeout):
 		"member": []
 	}
 	invd = invitedata[id]
+
+	# メンバー募集の終了スケジュールを別スレッドで開始する
+	t = threading.Thread(target = createRecruitmentSchedule, args = [guild, author, message, id, timeout], name = "recruitment_" + id)
+	t.start()
+	
 	log(f"募集開始 - ユーザー: {client.get_user(author)}")
 	log(f"- 募集情報 - Author ID: {invd['author_id']} | Message ID: {invd['message_id']} | Game Title: {invd['game']} | Number on People: {invd['nop']} | Timeout(sec): {invd['timeout']} | Member List: {invd['member']}"
 		)
 
+# メンバー募集の終了スケジュールを作成して開始する
+def createRecruitmentSchedule(guild, author, message_id, id, timeout):
+	global invitedata
+	
+	run_at = datetime.datetime.now() + datetime.timedelta(seconds = timeout)
+	run_at = int(time.mktime(run_at.utctimetuple()))
+	ev = scheduler.enterabs(run_at, 1, endInvite, argument = (1, guild, author, message_id))
+	invitedata[id]["event"] = ev
+	scheduler.run()
 
-async def endInvite(endtype, guild, author, message_id):
+def endInvite(endtype, guild, author, message_id):
 	global userdata
 	global invitedata
 
@@ -548,12 +630,12 @@ async def endInvite(endtype, guild, author, message_id):
 		# 埋め込みメッセージを作成して元の募集メッセージを編集する
 		msgembed.color = discord.Colour.from_rgb(205, 61, 66)
 		msgembed.description = ":no_entry_sign: この募集は締め切られました。"
-		await msg.edit(embed=msgembed, view=None)
+		asyncio.ensure_future(msg.edit(embed=msgembed, view=None), loop = loop)
 	elif endtype == 2:
 		# 埋め込みメッセージを作成して送信&編集
 		msgembed.color = discord.Colour.from_rgb(228, 146, 16)
 		msgembed.description = ":orange_square: この募集はキャンセルされました。"
-		await msg.edit(embed=msgembed, view=None)
+		asyncio.ensure_future(msg.edit(embed=msgembed, view=None), loop = loop)
 
 	# ユーザーデータの募集状態を無効に変える
 	ud["Atmark"] = False
@@ -633,8 +715,3 @@ try:
 	client.run(token)
 except:
 	os.system("kill 1")
-
-# イベント実行
-while True:
-	schedule.run_pending()
-	sleep(1)
