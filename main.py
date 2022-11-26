@@ -3,8 +3,6 @@ from discord.commands import Option
 
 import discord.ext.ui
 
-from server import keep_alive
-
 import asyncio
 import datetime
 import json
@@ -63,11 +61,23 @@ def convertToUserBulletPointsFromIDList(id_list):
 def loadToken():
 	global token
 
-	token = os.getenv("TOKEN")
-
-	if token == None:
+	try: # ファイルが存在しない場合
+		# ファイルを作成して初期データを書き込む
+		file = open("token.txt", "x", encoding="utf-8")
+		file.write("")
 		log("トークンが指定されていません...")
+		log("token.txt にトークンを入力してください！")
 		sys.exit("")
+
+	except FileExistsError: # ファイルが存在する場合
+		# ファイルから読み込む
+		file = open("token.txt", "r", encoding="utf-8")
+		token = file.read()
+		file.close()
+		if token == None:
+			log("トークンが指定されていません...")
+			log("token.txt にトークンを入力してください！")
+			sys.exit("")
 
 
 # Botの名前
