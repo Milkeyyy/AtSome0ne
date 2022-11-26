@@ -291,7 +291,7 @@ async def startRecruitmentStatusCheck():
 		global userdata
 		global invitedata
 		global guilddata
-	
+
 		# 各募集データをループ
 		for id in invitedata.keys():
 			invd = invitedata[id]
@@ -543,9 +543,6 @@ async def cancelrecruitment(ctx):
 		# 募集IDを取得
 		id = msgembed.footer.text.lstrip("ID: ")
 
-		# メンバー募集のスケジュールを削除
-		scheduler.cancel(invitedata[id]["event"])
-
 		# 募集を終了
 		endInvite(2, ctx.guild_id, ctx.author.id, invd["message_id"])
 		await ctx.respond(f"募集がキャンセルされました。\n・ID: {id}\n・ゲーム: {udg}",
@@ -570,9 +567,6 @@ async def endrecruitment(ctx):
 		msgembed = msg.embeds[0]
 		# 募集IDを取得
 		id = msgembed.footer.text.lstrip("ID: ")
-
-		# メンバー募集のスケジュールを削除
-		scheduler.cancel(invitedata[id]["event"])
 
 		# 募集を終了
 		endInvite(1, ctx.guild_id, ctx.author.id, invd["message_id"])
@@ -604,15 +598,14 @@ def startInvite(guild, author, message, game, nop, id, timeout):
 	}
 	invd = invitedata[id]
 
-	# メンバー募集の終了スケジュールを別スレッドで開始する
-	t = threading.Thread(target = createRecruitmentSchedule, args = [guild, author, message, id, timeout], name = "recruitment_" + id)
-	t.start()
+	# メンバー募集の終了スケジュールを作成
+	createRecruitmentSchedule(guild, author, message, id, timeout)
 
 	log(f"募集開始 - ユーザー: {client.get_user(author)}")
-	log(f"- 募集情報 - Author ID: {invd['author_id']} | Message ID: {invd['message_id']} | Game Title: {invd['game']} | Number on People: {invd['nop']} | Timeout(sec): {invd['timeout']} | Member List: {invd['member']}"
+	log(f"- 募集情報 - Author ID: {invd['author_id']} | Message ID: {invd['message_id']} | Game Title: {invd['game']} | Number of People: {invd['nop']} | Timeout(sec): {invd['timeout']} | Member List: {invd['member']}"
 		)
 
-# メンバー募集の終了スケジュールを作成して開始する
+# メンバー募集の終了スケジュールを作成して開始する関数
 def createRecruitmentSchedule(guild, author, message_id, id, timeout):
 	global invitedata
 
@@ -620,7 +613,10 @@ def createRecruitmentSchedule(guild, author, message_id, id, timeout):
 	run_at = int(time.mktime(run_at.utctimetuple()))
 	ev = scheduler.enterabs(run_at, 1, endInvite, argument = (1, guild, author, message_id))
 	invitedata[id]["event"] = ev
-	scheduler.run()
+	# メンバー募集の終了スケジュールを別スレッドで開始する
+	rst = threading.Thread(target = scheduler.run, name = "recruitment_scheduler_" + id)
+	rst.start()
+	invitedata[id]["thread"] = rst
 
 def endInvite(endtype, guild, author, message_id):
 	global userdata
@@ -635,13 +631,18 @@ def endInvite(endtype, guild, author, message_id):
 	# メッセージの埋め込みから募集IDを取得
 	id = msgembed.footer.text.lstrip("ID: ")
 
-	if endtype == 1:
-		# 埋め込みメッセージを作成して元の募集メッセージを編集する
+	# メンバー募集のスケジュールを削除
+	try:
+		scheduler.cancel(invitedata[id]["event"])
+	except:
+		log(f"Schedule {id} not found")
+
+	# 既存の募集メッセージを埋め込みメッセージで編集する
+	if endtype == 1: # 締め切り
 		msgembed.color = discord.Colour.from_rgb(205, 61, 66)
 		msgembed.description = ":no_entry_sign: この募集は締め切られました。"
 		asyncio.ensure_future(msg.edit(embed=msgembed, view=None), loop = loop)
-	elif endtype == 2:
-		# 埋め込みメッセージを作成して送信&編集
+	elif endtype == 2: # キャンセル
 		msgembed.color = discord.Colour.from_rgb(228, 146, 16)
 		msgembed.description = ":orange_square: この募集はキャンセルされました。"
 		asyncio.ensure_future(msg.edit(embed=msgembed, view=None), loop = loop)
@@ -717,4 +718,6 @@ async def help(ctx):
 
 
 #==================== ぼっとへログイン ====================#
+
+# ボットへログイン
 client.run(token)
